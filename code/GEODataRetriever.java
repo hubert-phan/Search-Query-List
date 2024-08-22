@@ -21,7 +21,7 @@ import com.google.gson.JsonParser;
 
 public class GEODataRetriever {
 
-    private static final String OUTPUT_JSON_FILE = "combined_geo_results_1.json";
+    private static final String OUTPUT_JSON_FILE = "combined_geo_results_smaller.json";
     private static final String EUTILS_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/";
 
     // Method to build the query URL for ESearch using a full sentence or keyword
@@ -94,14 +94,11 @@ public class GEODataRetriever {
         }
         return "GSE" + uid;
     }
-// Method to save the combined results to the JSON file with custom field names
-private void saveResults(JsonArray combinedResults) {
-    try (FileWriter writer = new FileWriter(OUTPUT_JSON_FILE);
-         PrintWriter printWriter = new PrintWriter(writer)) {
 
-        // Iterate over each JsonObject in combinedResults
-        for (JsonElement resultElement : combinedResults) {
-            JsonObject resultObject = resultElement.getAsJsonObject();
+    // Method to save a single result to the JSON file with custom field names
+    private void saveResult(JsonObject resultObject) {
+        try (FileWriter writer = new FileWriter(OUTPUT_JSON_FILE, true);
+             PrintWriter printWriter = new PrintWriter(writer)) {
 
             // Print the JSON with renamed fields
             printWriter.println("{");
@@ -122,18 +119,14 @@ private void saveResults(JsonArray combinedResults) {
             printWriter.printf("  \"parent\": \"%s\",\n", resultObject.get("parent").getAsString());
             printWriter.printf("  \"root\": \"%s\"\n", resultObject.get("root").getAsString());
             printWriter.println("},");
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-
-    } catch (IOException e) {
-        e.printStackTrace();
     }
-}
-    // Method to search GEO data for multiple keywords using a List and export to a single JSON file
-    public void searchAndExportCombined(List<String> keywords, String csvFilePath) {
-        JsonArray combinedResults = new JsonArray();
 
-        int counter = 0;
-        int saveInterval = 100; // Save every 100 processed keywords
+    // Method to search GEO data for multiple keywords using a List and export to a JSON file
+    public void searchAndExportCombined(List<String> keywords, String csvFilePath) {
 
         for (String keyword : keywords) {
             try {
@@ -156,25 +149,15 @@ private void saveResults(JsonArray combinedResults) {
                 keywordResult.addProperty("parent", d4Andd3[0]);
                 keywordResult.addProperty("root", d4Andd3[1]);
 
-                // Add this keyword's result to the combined results array
-                combinedResults.add(keywordResult);
-
-                // Increment counter and check if it's time to save
-                counter++;
-                if (counter % saveInterval == 0) {
-                    // Save the current state of combinedResults
-                    saveResults(combinedResults);
-                    System.out.println("Saved intermediate results after processing " + counter + " keywords.");
-                }
+                // Save this keyword's result to the JSON file
+                saveResult(keywordResult);
 
             } catch (IOException | InterruptedException e) {
                 System.err.println("Error processing keyword '" + keyword + "': " + e.getMessage());
             }
         }
 
-        // Final save after all processing is complete
-        saveResults(combinedResults);
-        System.out.println("Successfully saved final combined results.");
+        System.out.println("Successfully saved all combined results.");
     }
 
     // Method to get corresponding d4 and d3 values from the CSV file
@@ -182,9 +165,11 @@ private void saveResults(JsonArray combinedResults) {
         try (BufferedReader br = new BufferedReader(new FileReader(csvFilePath))) {
             String line;
             br.readLine(); // Skip the header
-
+    
             while ((line = br.readLine()) != null) {
-                String[] values = line.split(",");
+                // Use the updated CSV parser that handles quoted fields
+                String[] values = parseCSVLine(line);
+    
                 if (values[0].trim().equalsIgnoreCase(keyword.trim())) {
                     return new String[]{values[1].trim(), values[2].trim()};
                 }
@@ -194,13 +179,36 @@ private void saveResults(JsonArray combinedResults) {
         }
         return new String[]{"", ""}; // Return empty strings if not found
     }
+    
+    // Helper method to correctly parse a CSV line, respecting quoted fields with commas
+private String[] parseCSVLine(String line) {
+    List<String> values = new ArrayList<>();
+    StringBuilder currentField = new StringBuilder();
+    boolean inQuotes = false;
 
+    for (char ch : line.toCharArray()) {
+        if (ch == '"') {
+            inQuotes = !inQuotes; // Toggle the state of quotes
+        } else if (ch == ',' && !inQuotes) {
+            // If the character is a comma and we're not inside quotes, split here
+            values.add(currentField.toString().trim());
+            currentField.setLength(0); // Clear the current field
+        } else {
+            currentField.append(ch); // Add the current character to the field
+        }
+    }
+
+    // Add the last field
+    values.add(currentField.toString().trim());
+
+    return values.toArray(new String[0]);
+}
     
 
     // Example usage
     public static void main(String[] args) {
         try {
-            String filePath = "/Users/hubertphan/Downloads/disease_query_terms.csv"; // Replace with your file path
+            String filePath = "/Users/hubertphan/Downloads/smaller_query.csv"; // Replace with your file path
 
             // Extract keywords using KeywordExtractor
             List<String> keywords = KeywordExtractor.extractKeywordsFromFile(filePath);
