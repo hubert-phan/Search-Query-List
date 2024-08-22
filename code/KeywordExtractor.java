@@ -18,7 +18,8 @@ public class KeywordExtractor {
             br.readLine();
 
             while ((line = br.readLine()) != null) {
-                String[] values = line.split(",");
+                // Use a CSV parser that handles quoted fields
+                String[] values = parseCSVLine(line);
                 String d5 = values[0].trim();  // Extracting the value in the d5 column
                 keywords.add(d5);
             }
@@ -28,9 +29,33 @@ public class KeywordExtractor {
 
         return keywords;
     }
-    
+
+    // Helper method to correctly parse a CSV line, respecting quoted fields with commas
+    private static String[] parseCSVLine(String line) {
+        List<String> values = new ArrayList<>();
+        StringBuilder currentField = new StringBuilder();
+        boolean inQuotes = false;
+
+        for (char ch : line.toCharArray()) {
+            if (ch == '"') {
+                inQuotes = !inQuotes; // Toggle the state of quotes
+            } else if (ch == ',' && !inQuotes) {
+                // If the character is a comma and we're not inside quotes, split here
+                values.add(currentField.toString().trim());
+                currentField.setLength(0); // Clear the current field
+            } else {
+                currentField.append(ch); // Add the current character to the field
+            }
+        }
+
+        // Add the last field
+        values.add(currentField.toString().trim());
+
+        return values.toArray(new String[0]);
+    }
+
     public static void main(String[] args) {
-        String filePath = "/Users/hubertphan/Downloads/disease_query_terms.csv";  // Replace with your file path
+        String filePath = "/Users/hubertphan/Downloads/smaller_query.csv";  // Replace with your file path
         List<String> keywords = extractKeywordsFromFile(filePath);
 
         // Display the keywords
