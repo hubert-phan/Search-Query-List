@@ -3,14 +3,14 @@ package com.example;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 public class KeywordExtractor {
 
-    // Method to read keywords from the file and store them in a Set
-    public static Set<String> extractKeywordsFromFile(String filePath) {
-        Set<String> keywords = new HashSet<>();
+    // Method to read keywords from the file and store them in a List
+    public static List<String> extractKeywordsFromFile(String filePath) {
+        List<String> keywords = new ArrayList<>();
 
         try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
             String line;
@@ -31,7 +31,7 @@ public class KeywordExtractor {
     
     public static void main(String[] args) {
         String filePath = "/Users/hubertphan/Downloads/disease_query_terms.csv";  // Replace with your file path
-        Set<String> keywords = extractKeywordsFromFile(filePath);
+        List<String> keywords = extractKeywordsFromFile(filePath);
 
         // Display the keywords
         for (String keyword : keywords) {
