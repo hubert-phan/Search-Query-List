@@ -21,10 +21,10 @@ import com.google.gson.JsonParser;
 
 public class GEODataRetriever {
 
-    private static final String OUTPUT_JSON_FILE = "combined_geo_results_smaller.json";
+    private static final String OUTPUT_JSON_FILE = "combined_geo_results_GEOonly.json";
     private static final String EUTILS_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/";
 
-    // Method to build the query URL for ESearch using a full sentence or keyword
+    // Method to build the query URL for ESearch using a keyword
     private String buildESearchUrl(String keyword) {
         try {
             String query = URLEncoder.encode(keyword, StandardCharsets.UTF_8.toString());
@@ -32,22 +32,22 @@ public class GEODataRetriever {
             String retmode = "json"; // Return format
             String retmax = "1000"; // Number of results to retrieve
     
-            return EUTILS_BASE_URL + "esearch.fcgi?db=" + db + "&term=" + query + "&retmode=" + retmode + "&retmax=" + retmax;
+            return EUTILS_BASE_URL + "esearch.fcgi?db=" + db + "&term=" + query + "+AND+GSE[ETYP]&retmode=" + retmode + "&retmax=" + retmax;
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }
     }
 
     private String executeRequest(String url) throws IOException, InterruptedException {
-        System.out.println("Requesting URL: " + url);  // Print the URL
+        System.out.println("Requesting URL: " + url);
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))  // Create URI from the URL string
+                .uri(URI.create(url))
                 .GET()
                 .build();
-    
+
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-    
+
         if (response.statusCode() == 200) {
             return response.body();
         } else {
@@ -74,25 +74,17 @@ public class GEODataRetriever {
         // Retrieve the "idlist" array from the "esearchresult" object
         JsonArray idList = esearchResult.getAsJsonArray("idlist");
 
-        // Collect all IDs from the array and then convert them to accessions (GSE IDs)
+        // Collect only IDs that correspond to GSE accessions
         List<String> accessions = new ArrayList<>();
         for (JsonElement idElement : idList) {
             String id = idElement.getAsString();
-
-            // Convert the ID to Accession by removing the "200" prefix after "GSE"
-            accessions.add(getGEOAccession(id));
+            // Only add GSE accessions to the list
+            if (id.startsWith("200")) {
+                accessions.add("GSE" + id.substring(3));
+            }
         }
 
         return accessions;
-    }
-
-    // Method to convert UID to GEO Accession (GSE ID)
-    private String getGEOAccession(String uid) {
-        // Assuming the UID format is "200123456", we convert it to "GSE123456"
-        if (uid.startsWith("200")) {
-            uid = uid.substring(3); // Remove the "200" prefix
-        }
-        return "GSE" + uid;
     }
 
     // Method to save a single result to the JSON file with custom field names
@@ -181,34 +173,33 @@ public class GEODataRetriever {
     }
     
     // Helper method to correctly parse a CSV line, respecting quoted fields with commas
-private String[] parseCSVLine(String line) {
-    List<String> values = new ArrayList<>();
-    StringBuilder currentField = new StringBuilder();
-    boolean inQuotes = false;
+    private String[] parseCSVLine(String line) {
+        List<String> values = new ArrayList<>();
+        StringBuilder currentField = new StringBuilder();
+        boolean inQuotes = false;
 
-    for (char ch : line.toCharArray()) {
-        if (ch == '"') {
-            inQuotes = !inQuotes; // Toggle the state of quotes
-        } else if (ch == ',' && !inQuotes) {
-            // If the character is a comma and we're not inside quotes, split here
-            values.add(currentField.toString().trim());
-            currentField.setLength(0); // Clear the current field
-        } else {
-            currentField.append(ch); // Add the current character to the field
+        for (char ch : line.toCharArray()) {
+            if (ch == '"') {
+                inQuotes = !inQuotes; // Toggle the state of quotes
+            } else if (ch == ',' && !inQuotes) {
+                // If the character is a comma and we're not inside quotes, split here
+                values.add(currentField.toString().trim());
+                currentField.setLength(0); // Clear the current field
+            } else {
+                currentField.append(ch); // Add the current character to the field
+            }
         }
+
+        // Add the last field
+        values.add(currentField.toString().trim());
+
+        return values.toArray(new String[0]);
     }
-
-    // Add the last field
-    values.add(currentField.toString().trim());
-
-    return values.toArray(new String[0]);
-}
-    
 
     // Example usage
     public static void main(String[] args) {
         try {
-            String filePath = "/Users/hubertphan/Downloads/smaller_query.csv"; // Replace with your file path
+            String filePath = "/Users/hubertphan/Downloads/disease_query_terms.csv"; // Replace with your file path
 
             // Extract keywords using KeywordExtractor
             List<String> keywords = KeywordExtractor.extractKeywordsFromFile(filePath);
